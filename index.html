@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OSINT Workbench</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0d1217">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root{--bg:#0d1217;--p:#131a21;--p2:#1a232d;--ln:#26323d;--tx:#d9e2ea;--mu:#7f8f9d;--ac:#5aa9ff;--hot:#ff5a5a}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:13px/1.4 system-ui,Segoe UI,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit;background:var(--p2);border:1px solid var(--ln);border-radius:6px;padding:5px 8px;min-width:0}
+button{cursor:pointer}button:hover{border-color:var(--ac)}button[aria-pressed=true],.on{background:#1d3550;border-color:var(--ac)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:1px}textarea{resize:vertical;width:100%}
+#app{display:grid;grid-template-columns:52px 1fr 360px;grid-template-rows:48px 1fr;height:100dvh}
+header{grid-column:1/4;display:flex;gap:6px;align-items:center;padding:0 8px;background:var(--p);border-bottom:1px solid var(--ln)}
+header b{font-size:14px;margin-right:4px;white-space:nowrap}#omni{flex:1;max-width:560px}#cases{max-width:150px}
+#rail{background:var(--p);border-right:1px solid var(--ln);overflow-y:auto;padding:6px 5px;display:flex;flex-direction:column;gap:5px}
+#rail button{width:40px;height:34px;padding:0;font:700 10px ui-monospace,monospace;color:#0d1217;border:0}
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--p);border-bottom:1px solid var(--ln);flex-wrap:wrap}.bar input{width:150px}
+#cv{flex:1;width:100%;min-height:0;touch-action:none;cursor:grab;background:radial-gradient(#1a2430 1px,transparent 1px) 0 0/26px 26px,var(--bg)}
+#st{padding:3px 10px;color:var(--mu);font:11px ui-monospace,monospace;background:var(--p);border-top:1px solid var(--ln)}
+aside{background:var(--p);border-left:1px solid var(--ln);display:flex;flex-direction:column;min-height:0}
+#tabs{display:flex;gap:3px;padding:6px;border-bottom:1px solid var(--ln);overflow-x:auto}#tabs button{white-space:nowrap}
+#pane{padding:10px;overflow-y:auto;flex:1}#pane label{display:block;color:var(--mu);font-size:11px;margin:8px 0 2px}#pane input,#pane select{width:100%}
+.row{display:flex;gap:6px;align-items:center;margin:4px 0}.row>*{flex:1}.row>button{flex:none}.row.g>*{flex:1}
+.item{display:flex;gap:6px;align-items:center;padding:5px 6px;border:1px solid var(--ln);border-radius:6px;margin:4px 0;background:var(--p2);cursor:pointer}.item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}.mu{color:var(--mu)}.h{font-weight:600;margin:12px 0 4px}
+a.pv{display:block;padding:6px 8px;border:1px solid var(--ln);border-radius:6px;margin:4px 0;color:var(--tx);text-decoration:none;background:var(--p2)}a.pv:hover{border-color:var(--ac)}
+.bar2{height:6px;background:var(--ln);border-radius:4px}.bar2 i{display:block;height:100%;background:var(--ac);border-radius:4px}
+#toast{position:fixed;top:56px;left:50%;transform:translateX(-50%);background:#1d3550;border:1px solid var(--ac);padding:5px 12px;border-radius:20px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}#toast.s{opacity:1}
+#tgl{display:none}
+@media(max-width:860px){#app{grid-template-columns:52px 1fr}#tgl{display:inline-block}aside{display:none;position:fixed;left:0;right:0;bottom:0;height:58vh;z-index:5;border-top:1px solid var(--ac)}body.open aside{display:flex}#omni{max-width:none}#cases{max-width:90px}header b{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<div id="app">
+<header><b>OSINT Workbench</b><select id="cases" title="Case"></select><button id="newc" title="New case">+</button>
+<input id="omni" placeholder="Add entities: paste emails, IPs, domains, @handles, names — Enter" autocomplete="off">
+<button id="undo" title="Undo (Ctrl+Z)">↶</button><button id="redo" title="Redo (Ctrl+Y)">↷</button>
+<select id="file"><option value="">File</option><option value="json">Export JSON</option><option value="csv">Export CSV</option><option value="report">Report (print / PDF)</option><option value="png">Export PNG</option><option value="import">Import JSON / CSV</option><option value="sample">Add sample case</option><option value="delcase">Delete this case</option></select><button id="tgl">Panel</button></header>
+<nav id="rail"></nav>
+<main><div class="bar">
+<button id="lk" aria-pressed="false" title="Link mode (L): drag from one entity to another">Link</button>
+<button id="zi">+</button><button id="zo">−</button><button id="fit" title="Fit (F)">Fit</button>
+<select id="lay"><option value="">Layout</option><option value="force">Re-arrange</option><option value="circle">Circle</option><option value="grid">Grid</option></select>
+<input id="flt" placeholder="Filter entities…">
+<button id="tl" aria-pressed="true">Labels</button><button id="tp" aria-pressed="true">Physics</button><button id="tc" aria-pressed="false" title="Colour by cluster">Clusters</button><button id="tf" aria-pressed="false" title="Show only selection + neighbours">Focus</button>
+</div><canvas id="cv"></canvas><div id="st"></div></main>
+<aside><div id="tabs"></div><div id="pane"></div></aside>
+</div><div id="toast"></div><input type="file" id="imp" accept=".json,.csv" hidden>
+<script>
+"use strict";
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),uid=()=>Math.random().toString(36).slice(2,9);
+const TY={Person:['#f0b44c','PER'],Organization:['#8f7cf0','ORG'],Location:['#4cc38a','LOC'],Email:['#ef6a8a','EML'],Phone:['#4cb5f0','PHN'],Username:['#f08a4c','USR'],Domain:['#7fd65a','DOM'],IP:['#e36fd0','IP'],URL:['#7f95f5','URL'],Social:['#36d1d1','SOC'],Image:['#e6d04c','IMG'],Crypto:['#5ad6a0','CRY'],Event:['#f0675c','EVT'],Document:['#a3a8c8','DOC'],Vehicle:['#5fe0cf','VEH'],Custom:['#8b95a1','CUS']};
+const RELS=['knows','owns','works_at','located_at','uses','associated_with','controls','funds','communicates','related_to','attends','creates','member_of','registered','linked_to'];
+const CL=['#5aa9ff','#f0b44c','#4cc38a','#ef6a8a','#8f7cf0','#f08a4c','#36d1d1','#e6d04c','#e36fd0','#7fd65a'];
+const KEY='osint-workbench-v2',FIELDS=[['fullName','Full name'],['aliases','Aliases'],['dob','DOB / created'],['location','Location'],['email','Email'],['phone','Phone'],['url','URL / profile'],['source','Source link'],['tags','Tags']];
+let DB={cur:null,cases:{}},C,M,adj,V={x:0,y:0,k:1},sel=new Set(),prim=null,tab='Entity',U=[],R=[],alpha=0,raf=0,need=true,hov=null,qs=null,fs=null,pathN=null,pathE=new Set(),comps=0,opt={labels:1,phys:1,clus:0,focus:0},link=false,lastSt='';
+const blank=n=>({id:uid(),name:n||'New case',target:'',objective:'',tags:'',nodes:[],edges:[],timeline:[],caseNotes:''});
+const rep=(k,v)=>k==='vx'||k==='vy'||k[0]==='_'?undefined:v;
+function norm(o){const cf=o.caseFile||o;return{id:uid(),name:cf.name||'Imported case',target:cf.target||'',objective:cf.objective||'',tags:cf.tags||'',nodes:(o.nodes||[]).map(n=>({id:String(n.id),type:TY[n.type]?n.type:'Custom',label:String(n.label||n.id),x:+n.x||0,y:+n.y||0,pinned:!!n.pinned,data:n.data||{},notes:n.notes||(o.notes&&o.notes[n.id])||''})),edges:(o.edges||[]).map(e=>({id:e.id||uid(),source:String(e.source),target:String(e.target),label:e.label||'related_to'})),timeline:o.timeline||[],caseNotes:o.caseNotes||''}}
+function sample(){const c=blank('Sample case');c.target='A. Volkov / KrymTrans';c.objective='Map logistics network, identify intermediaries and funding routes.';
+const N=[['Person','A. Volkov',{fullName:'Alexey Volkov',aliases:'Lex',risk:'7',rel:'B',cred:'2'}],['Organization','KrymTrans LLC'],['Email','a.volkov@krymtrans.ru'],['Domain','krymtrans.ru'],['IP','185.12.44.9'],['Phone','+7 978 412-88-11'],['Username','volk_lex'],['Social','vk.com/volk_lex'],['Location','Kerch'],['Person','M. Petrova',{bio:'Customs liaison'}],['Vehicle','K412 AK 82'],['Event','Shipment 14.10.23']];
+c.nodes=N.map((n,i)=>({id:'n'+i,type:n[0],label:n[1],x:Math.cos(i)*220,y:Math.sin(i)*220,data:n[2]||{},notes:''}));
+[[0,1,'works_at'],[0,2,'uses'],[2,3,'associated_with'],[3,4,'owns'],[0,5,'uses'],[0,6,'uses'],[6,7,'controls'],[1,8,'located_at'],[0,9,'knows'],[9,1,'works_at'],[1,10,'owns'],[10,11,'attends'],[11,8,'located_at']].forEach(e=>c.edges.push({id:uid(),source:'n'+e[0],target:'n'+e[1],label:e[2]}));
+c.timeline=[{id:uid(),time:'2023-10-14T08:00',title:'Shipment detected',desc:'Vehicle observed crossing',nodeId:'n11'},{id:uid(),time:'2023-10-15T14:20',title:'Domain DNS changed',desc:'krymtrans.ru → 185.12.44.9',nodeId:'n3'}];c.caseNotes='# Case notes\n- Identify true owners behind KrymTrans.';return c}
+function load(){try{const r=localStorage.getItem(KEY),o=localStorage.getItem('osint-workbench-v1');if(r)DB=JSON.parse(r);else if(o){const c=norm(JSON.parse(o));DB.cases[c.id]=c;DB.cur=c.id}}catch(e){}
+if(!DB.cur||!DB.cases[DB.cur]){const ks=Object.keys(DB.cases);if(ks.length)DB.cur=ks[0];else{const c=sample();DB.cases[c.id]=c;DB.cur=c.id}}}
+let st=0;const save=()=>{clearTimeout(st);st=setTimeout(flush,700)};
+function flush(){try{localStorage.setItem(KEY,JSON.stringify(DB,rep))}catch(e){toast('Storage full — export JSON now')}}
+function use(id){DB.cur=id;C=DB.cases[id];sel.clear();prim=null;U=[];R=[];pathN=null;pathE.clear();idx();C.nodes.length&&fit();opts();renderInsp();save()}
+function opts(){$('#cases').innerHTML=Object.values(DB.cases).map(c=>`<option value="${c.id}"${c.id===DB.cur?' selected':''}>${esc(c.name)}</option>`).join('')}
+/* ---------- graph index ---------- */
+function idx(){M=new Map(C.nodes.map(n=>[n.id,n]));const seen=new Set();C.edges=C.edges.filter(e=>{const k=e.source+'|'+e.target;if(!M.has(e.source)||!M.has(e.target)||e.source===e.target||seen.has(k))return false;seen.add(k);return true});
+adj=new Map(C.nodes.map(n=>[n.id,[]]));C.edges.forEach(e=>{adj.get(e.source).push(e.target);adj.get(e.target).push(e.source)});
+comps=0;const vis=new Set();C.nodes.forEach(n=>{n.vx=n.vx||0;n.vy=n.vy||0;n._r=9+Math.min(adj.get(n.id).length,12)*1.1;if(vis.has(n.id))return;const q=[n.id];vis.add(n.id);while(q.length){const a=q.pop();M.get(a)._c=comps;adj.get(a).forEach(b=>{if(!vis.has(b)){vis.add(b);q.push(b)}})}comps++});
+setFilter();recalcFocus();wake(.7);dirty()}
+function setFilter(){const q=$('#flt').value.trim().toLowerCase();qs=q?new Set(C.nodes.filter(n=>(n.label+' '+n.type+' '+(n.data.aliases||'')+' '+(n.data.tags||'')).toLowerCase().includes(q)).map(n=>n.id)):null}
+function recalcFocus(){fs=null;if(opt.focus&&prim){fs=new Set([...sel]);sel.forEach(i=>adj.get(i).forEach(j=>fs.add(j)))}}
+/* ---------- simulation (stops itself when settled) ---------- */
+const kick=()=>{if(!raf)raf=requestAnimationFrame(frame)},wake=a=>{alpha=Math.max(alpha,a||.5);kick()},dirty=()=>{need=true;kick()};
+function frame(){raf=0;if(document.hidden)return;const sim=opt.phys&&alpha>.01;if(sim){tick();alpha*=.962}if(sim||need){draw();need=false}if(sim)kick();stat()}
+function tick(){const N=C.nodes,g=new Map(),S=150,key=(a,b)=>(a+5000)*10000+(b+5000);
+for(const n of N){const k=key(Math.floor(n.x/S),Math.floor(n.y/S));(g.get(k)||g.set(k,[]).get(k)).push(n)}
+for(const a of N){const cx=Math.floor(a.x/S),cy=Math.floor(a.y/S);for(let i=-1;i<2;i++)for(let j=-1;j<2;j++){const l=g.get(key(cx+i,cy+j));if(!l)continue;for(const b of l){if(a===b)continue;let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2>S*S)continue;if(d2<1){dx=Math.random()-.5;dy=Math.random()-.5;d2=1}const d=Math.sqrt(d2),f=3200/d2*alpha;a.vx+=dx/d*f;a.vy+=dy/d*f}}}
+for(const e of C.edges){const a=M.get(e.source),b=M.get(e.target),dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-130)*.03*alpha*1.6,fx=dx/d*f,fy=dy/d*f;a.vx+=fx;a.vy+=fy;b.vx-=fx;b.vy-=fy}
+for(const n of N){n.vx-=n.x*.0015*alpha;n.vy-=n.y*.0015*alpha;n.vx=Math.max(-30,Math.min(30,n.vx*.68));n.vy=Math.max(-30,Math.min(30,n.vy*.68));if(!n.pinned&&n!==drag?.n&&!(drag&&drag.grp&&drag.grp.has(n.id))){n.x+=n.vx;n.y+=n.vy}}}
+/* ---------- drawing ---------- */
+const cv=$('#cv'),x=cv.getContext('2d');
+function draw(){const r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2),W=r.width,H=r.height;if(cv.width!==(W*d|0)||cv.height!==(H*d|0)){cv.width=W*d;cv.height=H*d}
+x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,W,H);x.save();x.translate(V.x,V.y);x.scale(V.k,V.k);
+const k=V.k,x0=-V.x/k-80,y0=-V.y/k-80,x1=(W-V.x)/k+80,y1=(H-V.y)/k+80,dim=n=>(qs&&!qs.has(n.id))||(fs&&!fs.has(n.id)),inb=(a,b)=>!((a.x<x0&&b.x<x0)||(a.x>x1&&b.x>x1)||(a.y<y0&&b.y<y0)||(a.y>y1&&b.y>y1));
+const cat=e=>{const a=M.get(e.source),b=M.get(e.target);if(pathE.has(e.source+'|'+e.target))return 3;if(sel.has(e.source)||sel.has(e.target))return 2;return dim(a)||dim(b)?1:0};
+const cols=['rgba(140,160,180,.32)','rgba(140,160,180,.07)','rgba(90,169,255,.8)','#f0b44c'],wd=[1.2,1,2,3.2];
+const cs=C.edges.map(cat);
+for(let c=0;c<4;c++){x.beginPath();x.fillStyle=x.strokeStyle=cols[c];x.lineWidth=wd[c];const arr=new Path2D();let any=false;
+C.edges.forEach((e,i)=>{if(cs[i]!==c)return;const a=M.get(e.source),b=M.get(e.target);if(!inb(a,b))return;any=true;x.moveTo(a.x,a.y);x.lineTo(b.x,b.y);if(k>.35&&c!==1){const an=Math.atan2(b.y-a.y,b.x-a.x),tx=b.x-Math.cos(an)*b._r,ty=b.y-Math.sin(an)*b._r;arr.moveTo(tx,ty);arr.lineTo(tx-Math.cos(an-.4)*9,ty-Math.sin(an-.4)*9);arr.lineTo(tx-Math.cos(an+.4)*9,ty-Math.sin(an+.4)*9)}});
+if(any){x.stroke();x.fill(arr)}}
+if(opt.labels){x.font='10px ui-monospace,monospace';x.textAlign='center';x.textBaseline='middle';x.fillStyle='rgba(170,190,210,.85)';C.edges.forEach((e,i)=>{if(cs[i]===1||(cs[i]<2&&(k<.9||C.edges.length>300)))return;const a=M.get(e.source),b=M.get(e.target);if(inb(a,b)&&k>.5)x.fillText(e.label,(a.x+b.x)/2,(a.y+b.y)/2-6)})}
+for(const n of C.nodes){if(n.x<x0||n.x>x1||n.y<y0||n.y>y1)continue;const s=sel.has(n.id),r=n._r,t=TY[n.type];x.globalAlpha=dim(n)?.14:1;
+if(s||n.id===hov){x.beginPath();x.arc(n.x,n.y,r+5,0,6.283);x.fillStyle='rgba(90,169,255,.22)';x.fill();x.lineWidth=2;x.strokeStyle='#5aa9ff';x.stroke()}
+x.beginPath();x.arc(n.x,n.y,r,0,6.283);x.fillStyle=opt.clus?CL[n._c%CL.length]:t[0];x.fill();if(+n.data.risk>=7){x.lineWidth=2.5;x.strokeStyle='#ff5a5a';x.stroke()}
+if(pathN&&pathN.includes(n.id)){x.lineWidth=3;x.strokeStyle='#f0b44c';x.stroke()}
+if(n.pinned){x.fillStyle='#0d1217';x.beginPath();x.arc(n.x+r*.72,n.y-r*.72,3,0,6.283);x.fill()}
+x.textAlign='center';x.textBaseline='middle';if(k>.55){x.fillStyle='#0d1217';x.font='700 9px ui-monospace,monospace';x.fillText(t[1],n.x,n.y)}
+if(opt.labels&&(k>.45||s)){x.fillStyle='#d9e2ea';x.font=(s?'600 ':'')+'11px system-ui,sans-serif';x.textBaseline='top';x.fillText(n.label.length>28?n.label.slice(0,27)+'…':n.label,n.x,n.y+r+4)}}
+x.globalAlpha=1;
+if(drag&&drag.type==='link'){x.setLineDash([6,4]);x.strokeStyle='#5aa9ff';x.lineWidth=1.5;x.beginPath();x.moveTo(drag.n.x,drag.n.y);x.lineTo(drag.wx,drag.wy);x.stroke();x.setLineDash([])}
+x.restore();if(drag&&drag.type==='box'){x.strokeStyle='#5aa9ff';x.fillStyle='rgba(90,169,255,.1)';const b=drag.box;x.fillRect(b[0],b[1],b[2]-b[0],b[3]-b[1]);x.strokeRect(b[0],b[1],b[2]-b[0],b[3]-b[1])}}
+function stat(){const s=`${C.nodes.length} entities · ${C.edges.length} links · ${comps} clusters · ${sel.size} selected · ${opt.phys&&alpha>.01?'arranging…':'settled (idle)'}`;if(s!==lastSt){lastSt=s;$('#st').textContent=s}}
+/* ---------- view helpers ---------- */
+const toW=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left-V.x)/V.k,y:(e.clientY-r.top-V.y)/V.k,sx:e.clientX-r.left,sy:e.clientY-r.top}};
+const hit=(px,py)=>{for(let i=C.nodes.length-1;i>=0;i--){const n=C.nodes[i],dx=n.x-px,dy=n.y-py;if(dx*dx+dy*dy<=(n._r+4)*(n._r+4))return n}return null};
+function fit(ids){const L=ids?ids.map(i=>M.get(i)):C.nodes;if(!L.length)return;const r=cv.getBoundingClientRect(),xs=L.map(n=>n.x),ys=L.map(n=>n.y),a=Math.min(...xs),b=Math.max(...xs),c=Math.min(...ys),d=Math.max(...ys);
+V.k=Math.min(1.4,Math.max(.15,Math.min((r.width-120)/((b-a)||100),(r.height-120)/((d-c)||100))));V.x=r.width/2-(a+b)/2*V.k;V.y=r.height/2-(c+d)/2*V.k;dirty()}
+function zoom(f,sx,sy){const r=cv.getBoundingClientRect();sx=sx??r.width/2;sy=sy??r.height/2;const k=Math.min(3,Math.max(.12,V.k*f)),wx=(sx-V.x)/V.k,wy=(sy-V.y)/V.k;V.k=k;V.x=sx-wx*k;V.y=sy-wy*k;dirty()}
+function centerOn(id){const n=M.get(id),r=cv.getBoundingClientRect();V.x=r.width/2-n.x*V.k;V.y=r.height/2-n.y*V.k;dirty()}
+/* ---------- state mutation ---------- */
+const state=()=>JSON.stringify({n:C.nodes,e:C.edges},rep);
+function snap(){U.push(state());if(U.length>60)U.shift();R=[]}
+function restore(s){const o=JSON.parse(s);C.nodes=o.n;C.edges=o.e;[...sel].forEach(i=>{if(!o.n.some(n=>n.id===i))sel.delete(i)});prim=[...sel].pop()||null;idx();renderInsp();save()}
+const undo=()=>{if(U.length){R.push(state());restore(U.pop())}},redo=()=>{if(R.length){U.push(state());restore(R.pop())}};
+function select(ids,add){if(!add)sel.clear();ids.forEach(i=>sel.add(i));prim=ids.length?ids[ids.length-1]:[...sel].pop()||null;recalcFocus();renderInsp();dirty()}
+function addNode(type,label,ax,ay,at){const n={id:uid(),type,label,x:ax,y:ay,vx:0,vy:0,data:{},notes:''};if(at&&M.has(at)){const a=M.get(at),t=Math.random()*6.283;n.x=a.x+Math.cos(t)*90;n.y=a.y+Math.sin(t)*90}C.nodes.push(n);return n}
+function center(){const r=cv.getBoundingClientRect();return[(r.width/2-V.x)/V.k+(Math.random()-.5)*120,(r.height/2-V.y)/V.k+(Math.random()-.5)*120]}
+function connect(a,b,l){if(a===b||C.edges.some(e=>(e.source===a&&e.target===b)||(e.source===b&&e.target===a)))return;C.edges.push({id:uid(),source:a,target:b,label:l||'associated_with'})}
+function detect(s){s=s.trim();if(/^[\w.+-]+@[\w-]+(\.[\w-]+)+$/.test(s))return'Email';if(/^https?:\/\//i.test(s))return'URL';if(/^(\d{1,3}\.){3}\d{1,3}$/.test(s))return'IP';if(/^(bc1[a-z0-9]{20,60}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|0x[a-fA-F0-9]{40})$/.test(s))return'Crypto';if(/^\+?[\d\s().-]{8,20}$/.test(s)&&s.replace(/\D/g,'').length>=8)return'Phone';if(/^@\w{2,30}$/.test(s))return'Username';if(/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(s))return'Domain';if(/^\p{Lu}[\p{L}'.-]+(\s+\p{Lu}[\p{L}'.-]+)+$/u.test(s))return'Person';return'Custom'}
+function addMany(items,anchor){snap();let first=null,add=0;for(const [t,l] of items){let n=C.nodes.find(n=>n.type===t&&n.label.toLowerCase()===l.toLowerCase());if(!n){const [px,py]=anchor?[0,0]:center();n=addNode(t,l,px,py,anchor);add++}if(anchor&&anchor!==n.id)connect(anchor,n.id);first=first||n}idx();if(first){select([first.id]);}save();toast(add?`Added ${add} ${add>1?'entities':'entity'}`:'Already in graph')}
+function extract(text){const out=[],RX=[['Email',/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g],['URL',/https?:\/\/[^\s<>"')]+/g],['IP',/\b(?:\d{1,3}\.){3}\d{1,3}\b/g],['Crypto',/\b(?:bc1[a-z0-9]{20,60}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|0x[a-fA-F0-9]{40})\b/g],['Phone',/\+\d[\d\s().-]{7,16}\d/g],['Username',/(?<![\w@])@[A-Za-z0-9_.]{3,30}/g],['Domain',/\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|ru|co|za|info|biz|gov|edu|me|ly|xyz|app|dev|cc|tv|ua|de|uk|fr|cn)\b/gi]];
+for(const [t,rx] of RX){(text.match(rx)||[]).forEach(m=>{out.push([t,m.trim()]);text=text.replace(m,' ')})}return out}
+function delSel(){if(!sel.size)return;snap();C.nodes=C.nodes.filter(n=>!sel.has(n.id));sel.clear();prim=null;pathN=null;pathE.clear();idx();renderInsp();save();toast('Deleted')}
+function merge(){const L=[...sel].map(i=>M.get(i));if(L.length<2)return;snap();const p=L[0];L.slice(1).forEach(o=>{C.edges.forEach(e=>{if(e.source===o.id)e.source=p.id;if(e.target===o.id)e.target=p.id});p.data.aliases=[p.data.aliases,o.label,o.data.aliases].filter(Boolean).join(', ');for(const k in o.data)if(!p.data[k])p.data[k]=o.data[k];if(o.notes)p.notes=(p.notes?p.notes+'\n':'')+o.notes});C.nodes=C.nodes.filter(n=>!L.slice(1).includes(n));sel.clear();sel.add(p.id);prim=p.id;idx();renderInsp();save();toast('Merged into '+p.label)}
+function trace(){const [a,b]=[...sel];if(!a||!b)return;const prev=new Map([[a,null]]),q=[a];while(q.length){const c=q.shift();if(c===b)break;adj.get(c).forEach(n=>{if(!prev.has(n)){prev.set(n,c);q.push(n)}})}
+pathN=null;pathE.clear();if(!prev.has(b)){toast('No path between these entities');dirty();return}pathN=[];for(let c=b;c;c=prev.get(c)){pathN.unshift(c)}for(let i=0;i<pathN.length-1;i++){pathE.add(pathN[i]+'|'+pathN[i+1]);pathE.add(pathN[i+1]+'|'+pathN[i])}toast(`Path: ${pathN.length-1} hop${pathN.length>2?'s':''}`);dirty();renderInsp()}
+function between(){const N=C.nodes.map(n=>n.id),B=new Map(N.map(i=>[i,0]));if(N.length>400)return null;for(const s of N){const S=[],P=new Map(N.map(i=>[i,[]])),sg=new Map(N.map(i=>[i,0])),d=new Map(N.map(i=>[i,-1]));sg.set(s,1);d.set(s,0);const q=[s];while(q.length){const v=q.shift();S.push(v);adj.get(v).forEach(w=>{if(d.get(w)<0){d.set(w,d.get(v)+1);q.push(w)}if(d.get(w)===d.get(v)+1){sg.set(w,sg.get(w)+sg.get(v));P.get(w).push(v)}})}
+const dl=new Map(N.map(i=>[i,0]));while(S.length){const w=S.pop();P.get(w).forEach(v=>dl.set(v,dl.get(v)+sg.get(v)/sg.get(w)*(1+dl.get(w))));if(w!==s)B.set(w,B.get(w)+dl.get(w))}}return[...B.entries()].sort((a,b)=>b[1]-a[1])}
+function layout(k){snap();const N=C.nodes,n=N.length;N.forEach(a=>a.pinned=false);if(k==='circle'){const r=Math.max(180,n*20);N.forEach((a,i)=>{a.x=Math.cos(i/n*6.283)*r;a.y=Math.sin(i/n*6.283)*r});alpha=0}else if(k==='grid'){const c=Math.ceil(Math.sqrt(n));N.forEach((a,i)=>{a.x=(i%c-c/2)*150;a.y=(Math.floor(i/c)-c/2)*130});alpha=0}else wake(1);fit();save()}
+/* ---------- pointer interaction ---------- */
+let drag=null,P=new Map(),pinch=null;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);P.set(e.pointerId,[e.clientX,e.clientY]);if(P.size===2){drag=null;const [a,b]=[...P.values()];pinch={d:Math.hypot(a[0]-b[0],a[1]-b[1]),k:V.k};return}
+const w=toW(e),n=hit(w.x,w.y),multi=e.ctrlKey||e.metaKey;
+if(n){if(link||e.shiftKey){drag={type:'link',n,wx:w.x,wy:w.y};return}
+if(multi){sel.has(n.id)?sel.delete(n.id):sel.add(n.id);prim=n.id;recalcFocus();renderInsp();dirty();return}
+if(!sel.has(n.id))select([n.id]);else{prim=n.id;renderInsp()}snap();const grp=new Set(sel);drag={type:'node',n,grp,ox:w.x-n.x,oy:w.y-n.y,start:new Map([...grp].map(i=>[i,[M.get(i).x,M.get(i).y]])),sx:w.x,sy:w.y,moved:0,orig:!!(sel.size>1)};cv.style.cursor='grabbing'}
+else if(e.shiftKey||multi)drag={type:'box',box:[w.sx,w.sy,w.sx,w.sy],add:multi};
+else drag={type:'pan',px:e.clientX-V.x,py:e.clientY-V.y,sx:e.clientX,sy:e.clientY,moved:0}});
+cv.addEventListener('pointermove',e=>{if(P.has(e.pointerId))P.set(e.pointerId,[e.clientX,e.clientY]);
+if(pinch&&P.size===2){const [a,b]=[...P.values()],r=cv.getBoundingClientRect(),f=Math.hypot(a[0]-b[0],a[1]-b[1])/pinch.d;zoom(pinch.k*f/V.k,(a[0]+b[0])/2-r.left,(a[1]+b[1])/2-r.top);return}
+const w=toW(e);if(!drag){const h=hit(w.x,w.y),id=h?h.id:null;if(id!==hov){hov=id;cv.style.cursor=id?'pointer':'grab';dirty()}return}
+if(drag.type==='node'){const dx=w.x-drag.sx,dy=w.y-drag.sy;drag.moved=Math.max(drag.moved,Math.abs(dx)+Math.abs(dy));drag.grp.forEach(i=>{const n=M.get(i),s=drag.start.get(i);n.x=s[0]+dx;n.y=s[1]+dy;n.vx=n.vy=0;if(drag.moved>3)n.pinned=true});wake(.25);dirty()}
+else if(drag.type==='pan'){drag.moved+=1;V.x=e.clientX-drag.px;V.y=e.clientY-drag.py;dirty()}
+else if(drag.type==='link'){drag.wx=w.x;drag.wy=w.y;dirty()}
+else if(drag.type==='box'){drag.box[2]=w.sx;drag.box[3]=w.sy;dirty()}});
+const up=e=>{P.delete(e.pointerId);if(pinch){if(P.size<2)pinch=null;return}if(!drag)return;const w=toW(e),d=drag;drag=null;cv.style.cursor='grab';
+if(d.type==='link'){const t=hit(w.x,w.y);if(t&&t!==d.n){snap();connect(d.n.id,t.id);idx();renderInsp();save();toast('Linked')}else dirty()}
+else if(d.type==='node'){if(d.moved<=3){U.pop();if(d.grp.size>1)select([d.n.id])}else save();dirty()}
+else if(d.type==='pan'){if(d.moved<4&&sel.size){select([])}else dirty()}
+else if(d.type==='box'){const b=d.box,[a1,a2]=[Math.min(b[0],b[2]),Math.max(b[0],b[2])],[c1,c2]=[Math.min(b[1],b[3]),Math.max(b[1],b[3])],ids=C.nodes.filter(n=>{const sx=n.x*V.k+V.x,sy=n.y*V.k+V.y;return sx>=a1&&sx<=a2&&sy>=c1&&sy<=c2}).map(n=>n.id);select(ids,d.add)}};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();const w=toW(e);zoom(Math.exp(-e.deltaY*.0015),w.sx,w.sy)},{passive:false});
+cv.addEventListener('dblclick',e=>{const w=toW(e);if(hit(w.x,w.y))return;snap();const n=addNode('Custom','New entity',w.x,w.y);idx();select([n.id]);save();setTimeout(()=>{const i=$('#pane [data-f=label]');i&&(i.focus(),i.select())},30)});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('keydown',e=>{const t=e.target.tagName,typing=t==='INPUT'||t==='TEXTAREA'||t==='SELECT';
+if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}
+if(typing)return;if(e.key==='Delete'||e.key==='Backspace')delSel();else if(e.key==='Escape'){pathN=null;pathE.clear();select([])}else if(e.key.toLowerCase()==='f')fit(sel.size?[...sel]:null);else if(e.key.toLowerCase()==='l')setLink(!link);else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='a'){e.preventDefault();select(C.nodes.map(n=>n.id))}});
+const setLink=v=>{link=v;$('#lk').setAttribute('aria-pressed',v)};
+/* ---------- pivots ---------- */
+function pivots(n){const raw=n.label,q=encodeURIComponent(raw),g=s=>'https://www.google.com/search?q='+encodeURIComponent(s),d=n.data,u=encodeURIComponent(d.url||raw),h=raw.replace(/^@/,''),hq=encodeURIComponent(h),dg=raw.replace(/[^\d+]/g,'');
+const L={Person:[['LinkedIn',g(`site:linkedin.com/in "${raw}"`)],['Facebook',g(`site:facebook.com "${raw}"`)],['X / Twitter',g(`(site:x.com OR site:twitter.com) "${raw}"`)],['Instagram',g(`site:instagram.com "${raw}"`)],['VK',g(`site:vk.com "${raw}"`)],['Court / legal',g(`"${raw}" (court OR lawsuit OR judgment)`)],['News',g(`"${raw}" news`)],['CV / documents',g(`"${raw}" (resume OR cv) filetype:pdf`)],['Yandex images','https://yandex.com/images/search?text='+q],['Pastes / leaks',g(`"${raw}" site:pastebin.com`)]],
+Organization:[['OpenCorporates','https://opencorporates.com/companies?q='+q],['LinkedIn company',g(`site:linkedin.com/company "${raw}"`)],['News',g(`"${raw}" news`)],['Filings',g(`"${raw}" filetype:pdf (annual OR registration)`)],['Sanctions / watch',g(`"${raw}" sanctions OR fraud OR investigation`)]],
+Username:[...['github.com','x.com','instagram.com','tiktok.com/@','reddit.com/user','t.me','vk.com','youtube.com/@','twitch.tv','steamcommunity.com/id','medium.com/@','keybase.io','gitlab.com','linkedin.com/in','facebook.com','pinterest.com','snapchat.com/add','soundcloud.com','flickr.com/people','patreon.com'].map(s=>[s.replace(/\/@?$/,''),`https://${s}${s.endsWith('@')?'':'/'}${hq}`]),['Google dork',g(`"${h}"`)]],
+Email:[['Have I Been Pwned','https://haveibeenpwned.com/account/'+q],['Epieos','https://epieos.com/?q='+q],['Hunter verify','https://hunter.io/email-verifier/'+q],['Google exact',g(`"${raw}"`)],['Pastes',g(`"${raw}" site:pastebin.com OR site:github.com`)]],
+Phone:[['WhatsApp','https://wa.me/'+dg.replace('+','')],['Telegram','https://t.me/'+dg],['Truecaller','https://www.truecaller.com/search/'+q],['Google exact',g(`"${raw}"`)]],
+Domain:[['WHOIS','https://who.is/whois/'+q],['crt.sh','https://crt.sh/?q='+q],['urlscan','https://urlscan.io/search/#'+q],['Wayback','https://web.archive.org/web/*/'+raw],['VirusTotal','https://www.virustotal.com/gui/domain/'+q],['Shodan','https://www.shodan.io/search?query='+q],['SecurityTrails','https://securitytrails.com/domain/'+q+'/history'],['BuiltWith','https://builtwith.com/'+q]],
+IP:[['VirusTotal','https://www.virustotal.com/gui/ip-address/'+q],['AbuseIPDB','https://www.abuseipdb.com/check/'+q],['Shodan','https://www.shodan.io/host/'+q],['Censys','https://search.censys.io/hosts/'+q],['GreyNoise','https://viz.greynoise.io/ip/'+q],['BGP / ASN','https://bgp.he.net/ip/'+q]],
+URL:[['Wayback','https://web.archive.org/web/*/'+raw],['urlscan','https://urlscan.io/search/#'+q],['Open URL',/^https?:/.test(raw)?raw:'https://'+raw]],
+Social:[['Open profile',/^https?:/.test(raw)?raw:'https://'+raw],['Wayback','https://web.archive.org/web/*/'+raw],['Google exact',g(`"${raw}"`)]],
+Location:[['Google Maps','https://www.google.com/maps/search/'+q],['OpenStreetMap','https://www.openstreetmap.org/search?query='+q],['Google Earth','https://earth.google.com/web/search/'+q],['Wikimapia','https://wikimapia.org/#search='+q]],
+Crypto:[['Blockchair','https://blockchair.com/search?q='+q],['Blockchain.com','https://www.blockchain.com/explorer/search?search='+q],['Etherscan','https://etherscan.io/address/'+q],['Google exact',g(`"${raw}"`)]],
+Image:[['Yandex reverse','https://yandex.com/images/search?rpt=imageview&url='+u],['TinEye','https://tineye.com/search?url='+u],['Google Lens','https://lens.google.com/uploadbyurl?url='+u]],
+Vehicle:[['Google exact',g(`"${raw}"`)],['Images',g(`"${raw}"`)+'&tbm=isch']]};
+return L[n.type]||[['Google',g(`"${raw}"`)],['Bing','https://www.bing.com/search?q='+q],['DuckDuckGo','https://duckduckgo.com/?q='+q],['Yandex','https://yandex.com/search/?text='+q]]}
+/* ---------- inspector ---------- */
+const TABS=['Entity','Pivots','Timeline','Notes','Analysis'],dot=n=>`<i class="dot" style="background:${TY[n.type][0]}"></i>`;
+const pnode=()=>prim&&M.get(prim);
+function renderInsp(){$('#tabs').innerHTML=TABS.map(t=>`<button data-a="tab" data-v="${t}" class="${t===tab?'on':''}">${t}</button>`).join('');const p=$('#pane');p.innerHTML=({Entity:tEntity,Pivots:tPivots,Timeline:tTimeline,Notes:tNotes,Analysis:tAnalysis})[tab]()}
+function tEntity(){const n=pnode();if(!n)return`<div class="h">No entity selected</div><p class="mu">Click an entity, or add one from the left rail. Paste a list into the top bar to add many at once.</p><p class="mu">Drag empty space to pan. Shift+drag boxes a selection. Shift+drag between entities (or use Link) to connect. Double-click empty space adds an entity.</p>`;
+if(sel.size>1){const L=[...sel].map(i=>M.get(i));return`<div class="h">${sel.size} entities selected</div><div class="row g"><button data-a="chain">Chain</button><button data-a="star">Star from first</button></div><div class="row g"><button data-a="merge" title="Merge all into the first-selected entity">Merge</button>${sel.size===2?'<button data-a="trace">Trace path</button>':''}<button data-a="del" style="color:var(--hot)">Delete</button></div>${L.map(m=>`<div class="item" data-a="sel" data-id="${m.id}">${dot(m)}<span>${esc(m.label)}</span><small class="mu">${m.type}</small></div>`).join('')}`}
+const d=n.data,deg=adj.get(n.id).length,comp=Math.min(100,Object.values(d).filter(Boolean).length*12+(n.label?25:0)+deg*8),rels=C.edges.filter(e=>e.source===n.id||e.target===n.id);
+return`<div class="row">${dot(n)}<input data-f="label" value="${esc(n.label)}" style="font-weight:600"></div><div class="mu" style="font-size:11px">${n.type} · ${deg} connection${deg===1?'':'s'} · profile ${comp}% complete</div><div class="bar2"><i style="width:${comp}%"></i></div>
+<div class="row g"><div><label>Type</label><select data-f="type">${Object.keys(TY).map(t=>`<option${t===n.type?' selected':''}>${t}</option>`).join('')}</select></div><div><label>Risk</label><select data-f="d.risk">${[['0','Low'],['5','Medium'],['7','High'],['9','Critical']].map(r=>`<option value="${r[0]}"${(d.risk||'0')===r[0]?' selected':''}>${r[1]}</option>`).join('')}</select></div></div>
+<div class="row g"><div><label>Source reliability</label><select data-f="d.rel"><option value="">–</option>${'ABCDEF'.split('').map(r=>`<option${d.rel===r?' selected':''}>${r}</option>`).join('')}</select></div><div><label>Info credibility</label><select data-f="d.cred"><option value="">–</option>${[1,2,3,4,5,6].map(r=>`<option${d.cred==r?' selected':''}>${r}</option>`).join('')}</select></div></div>
+${FIELDS.map(f=>`<label>${f[1]}</label><input data-f="d.${f[0]}" value="${esc(d[f[0]])}">`).join('')}<label>Bio / observations</label><textarea data-f="d.bio" rows="3">${esc(d.bio)}</textarea>
+${Object.keys(d).filter(k=>![...FIELDS.map(f=>f[0]),'bio','risk','rel','cred'].includes(k)).map(k=>`<label>${esc(k)}</label><input data-f="d.${esc(k)}" value="${esc(d[k])}">`).join('')}
+<div class="row"><input id="ck" placeholder="Custom field name"><button data-a="addf">+ Field</button></div>
+<div class="h">Relationships</div>${rels.map(e=>{const o=M.get(e.source===n.id?e.target:e.source);return`<div class="item"><span data-a="sel" data-id="${o.id}">${e.source===n.id?'→':'←'} ${esc(o.label)}</span><select data-f="e.label" data-id="${e.id}" style="width:120px">${[...new Set([...RELS,e.label])].map(r=>`<option${r===e.label?' selected':''}>${r}</option>`).join('')}</select><button data-a="rev" data-id="${e.id}" title="Reverse direction">⇄</button><button data-a="dele" data-id="${e.id}">✕</button></div>`}).join('')||'<p class="mu">No links yet.</p>'}
+<div class="row g" style="margin-top:12px"><button data-a="pin">${n.pinned?'Unpin':'Pin'}</button><button data-a="dup">Duplicate</button><button data-a="del" style="color:var(--hot)">Delete</button></div>`}
+function tPivots(){const n=pnode();if(!n)return'<p class="mu">Select an entity to see lookups for it. Every lookup opens in a new tab; nothing is sent from this app.</p>';
+return`<div class="h">${esc(n.type)} lookups</div>${pivots(n).map(p=>`<a class="pv" href="${esc(p[1])}" target="_blank" rel="noopener noreferrer">${esc(p[0])}</a>`).join('')}<div class="h">Dork builder</div><textarea id="dork" rows="2" placeholder='site:example.com "${esc(n.label)}"'></textarea><div class="row g">${['site:','intext:','filetype:','inurl:'].map(s=>`<button data-a="dk" data-v="${s}">${s}</button>`).join('')}</div><div class="row g">${['Google','Bing','DuckDuckGo','Yandex'].map(s=>`<button data-a="eng" data-v="${s}">${s}</button>`).join('')}</div>`}
+function tTimeline(){const L=[...C.timeline].sort((a,b)=>new Date(a.time)-new Date(b.time)),n=pnode();
+return`<div class="row"><input id="tt" placeholder="Event${n?' for '+esc(n.label):''}"><input id="td" type="datetime-local" style="max-width:170px"><button data-a="tadd">Add</button></div>${L.map(t=>{const o=t.nodeId&&M.get(t.nodeId);return`<div class="item" style="display:block"><div class="row"><b>${esc(t.title)}</b><button data-a="tdel" data-id="${t.id}">✕</button></div><div class="mu">${new Date(t.time).toLocaleString()}${o?` · <a href="#" data-a="sel" data-id="${o.id}">${esc(o.label)}</a>`:''}</div><textarea data-f="tl.desc" data-id="${t.id}" rows="2" placeholder="Details">${esc(t.desc)}</textarea></div>`}).join('')||'<p class="mu">No events yet. Select an entity first to link the event to it.</p>'}`}
+function tNotes(){const n=pnode();return`<label>Case name</label><input data-f="case.name" value="${esc(C.name)}"><label>Target</label><input data-f="case.target" value="${esc(C.target)}"><label>Objective</label><textarea data-f="case.objective" rows="2">${esc(C.objective)}</textarea><label>Tags</label><input data-f="case.tags" value="${esc(C.tags)}"><label>Case notes</label><textarea data-f="caseNotes" rows="8">${esc(C.caseNotes)}</textarea>${n?`<label>Notes on ${esc(n.label)}</label><textarea data-f="notes" rows="6">${esc(n.notes)}</textarea>`:''}`}
+function tAnalysis(){const N=C.nodes,top=[...N].sort((a,b)=>adj.get(b.id).length-adj.get(a.id).length).slice(0,6),iso=N.filter(n=>!adj.get(n.id).length),B=between(),dup={};N.forEach(n=>{const k=n.label.toLowerCase();(dup[k]=dup[k]||[]).push(n)});const dups=Object.values(dup).filter(l=>l.length>1),hi=N.filter(n=>+n.data.risk>=7);
+const li=(n,x)=>`<div class="item" data-a="sel" data-id="${n.id}">${dot(n)}<span>${esc(n.label)}</span><small class="mu">${x??n.type}</small></div>`;
+return`<div class="h">Overview</div><p class="mu">${N.length} entities, ${C.edges.length} links, ${comps} separate cluster${comps===1?'':'s'}, ${iso.length} unlinked.</p>
+<div class="h">Most connected</div>${top.map(n=>li(n,adj.get(n.id).length)).join('')||'<p class="mu">Nothing yet.</p>'}
+<div class="h">Key bridges (betweenness)</div>${B?B.slice(0,5).filter(b=>b[1]>0).map(b=>li(M.get(b[0]),b[1].toFixed(1))).join('')||'<p class="mu">No bridging entities.</p>':'<p class="mu">Skipped above 400 entities.</p>'}
+<div class="h">High-risk (${hi.length})</div>${hi.map(n=>li(n)).join('')||'<p class="mu">None flagged.</p>'}
+<div class="h">Possible duplicates</div>${dups.map(l=>li(l[0],l.length+'×')).join('')||'<p class="mu">None found.</p>'}
+<div class="h">Unlinked entities</div>${iso.slice(0,8).map(n=>li(n)).join('')||'<p class="mu">None.</p>'}
+<div class="h">Extract from text</div><textarea id="ex" rows="4" placeholder="Paste a page, chat or report. Emails, URLs, IPs, phones, wallets, handles and domains become entities${pnode()?' linked to '+esc(pnode().label):''}."></textarea><div class="row g"><button data-a="ext">Extract</button></div>`}
+/* ---------- events ---------- */
+const pane=$('#pane');
+pane.addEventListener('focusin',e=>{if(e.target.dataset.f&&!/^(case|caseNotes|tl|notes)/.test(e.target.dataset.f)){const l=U[U.length-1];if(l!==state())snap()}});
+pane.addEventListener('input',e=>{const t=e.target,f=t.dataset.f;if(!f)return;const v=t.value,n=pnode();
+if(f==='label'&&n){n.label=v||'Untitled';setFilter()}else if(f==='type'&&n){n.type=v}else if(f==='notes'&&n)n.notes=v;else if(f.startsWith('d.')&&n)n.data[f.slice(2)]=v;
+else if(f==='e.label'){const e2=C.edges.find(x=>x.id===t.dataset.id);if(e2)e2.label=v}else if(f==='tl.desc'){const x=C.timeline.find(x=>x.id===t.dataset.id);if(x)x.desc=v}
+else if(f.startsWith('case.')){C[f.slice(5)]=v;if(f==='case.name')opts()}else if(f==='caseNotes')C.caseNotes=v;
+if(f==='type')idx();else dirty();save()});
+function act(a,el){const D=el.dataset,n=pnode();switch(a){
+case'tab':tab=D.v;renderInsp();break;case'sel':{select([D.id]);centerOn(D.id);break}
+case'del':delSel();break;case'chain':{snap();const L=[...sel];for(let i=0;i<L.length-1;i++)connect(L[i],L[i+1]);idx();renderInsp();save();break}
+case'star':{snap();const L=[...sel];L.slice(1).forEach(i=>connect(L[0],i));idx();renderInsp();save();break}case'merge':merge();break;case'trace':trace();break;
+case'pin':n.pinned=!n.pinned;renderInsp();dirty();save();break;case'dup':{snap();const c=addNode(n.type,n.label+' (copy)',n.x+50,n.y+50);c.data={...n.data};c.notes=n.notes;idx();select([c.id]);save();break}
+case'addf':{const k=$('#ck').value.trim();if(k&&n){n.data[k]=n.data[k]||'';renderInsp()}break}
+case'dele':snap();C.edges=C.edges.filter(e=>e.id!==D.id);idx();renderInsp();save();break;
+case'rev':{snap();const e=C.edges.find(e=>e.id===D.id);[e.source,e.target]=[e.target,e.source];idx();renderInsp();save();break}
+case'dk':{const t=$('#dork');t.value+=(t.value&&!t.value.endsWith(' ')?' ':'')+D.v;t.focus();break}
+case'eng':{const q=encodeURIComponent($('#dork').value||(n?n.label:'')),u={Google:'https://www.google.com/search?q=',Bing:'https://www.bing.com/search?q=',DuckDuckGo:'https://duckduckgo.com/?q=',Yandex:'https://yandex.com/search/?text='}[D.v];open(u+q,'_blank','noopener');break}
+case'tadd':{const t=$('#tt').value.trim();if(!t)return;C.timeline.push({id:uid(),time:$('#td').value||new Date().toISOString().slice(0,16),title:t,desc:'',nodeId:prim||undefined});renderInsp();save();break}
+case'tdel':C.timeline=C.timeline.filter(t=>t.id!==D.id);renderInsp();save();break;
+case'ext':{const it=extract($('#ex').value);if(!it.length){toast('Nothing recognisable found');return}addMany(it,prim);break}}}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-a]');if(!el)return;e.preventDefault();act(el.dataset.a,el)});
+/* ---------- chrome wiring ---------- */
+$('#rail').innerHTML=Object.entries(TY).map(([t,v])=>`<button data-t="${t}" title="Add ${t}" style="background:${v[0]}">${v[1]}</button>`).join('');
+$('#rail').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;snap();const [px,py]=center(),n=addNode(b.dataset.t,'New '+b.dataset.t.toLowerCase(),px,py,prim);if(prim)connect(prim,n.id);idx();select([n.id]);tab='Entity';renderInsp();save();setTimeout(()=>{const i=$('#pane [data-f=label]');i&&(i.focus(),i.select())},30)});
+$('#omni').addEventListener('keydown',e=>{if(e.key!=='Enter')return;const items=e.target.value.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean).map(s=>[detect(s),s]);if(!items.length)return;addMany(items,prim);e.target.value=''});
+$('#cases').onchange=e=>use(e.target.value);$('#newc').onclick=()=>{const n=prompt('Case name');if(n){const c=blank(n);DB.cases[c.id]=c;use(c.id)}};
+$('#undo').onclick=undo;$('#redo').onclick=redo;$('#lk').onclick=()=>setLink(!link);$('#zi').onclick=()=>zoom(1.25);$('#zo').onclick=()=>zoom(.8);$('#fit').onclick=()=>fit(sel.size?[...sel]:null);$('#tgl').onclick=()=>document.body.classList.toggle('open');
+$('#lay').onchange=e=>{if(e.target.value)layout(e.target.value);e.target.value=''};
+let ft=0;$('#flt').oninput=()=>{clearTimeout(ft);ft=setTimeout(()=>{setFilter();dirty()},150)};
+[['#tl','labels'],['#tp','phys'],['#tc','clus'],['#tf','focus']].forEach(([s,k])=>{$(s).onclick=()=>{opt[k]=opt[k]?0:1;$(s).setAttribute('aria-pressed',!!opt[k]);if(k==='focus')recalcFocus();if(k==='phys'&&opt.phys)wake(.5);dirty()}});
+new ResizeObserver(()=>dirty()).observe(cv);document.addEventListener('visibilitychange',()=>{if(document.hidden)flush();else dirty()});addEventListener('pagehide',flush);
+let toastT=0;function toast(m){const t=$('#toast');t.textContent=m;t.className='s';clearTimeout(toastT);toastT=setTimeout(()=>t.className='',1800)}
+/* ---------- import / export ---------- */
+const dl=(n,m,t)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:m}));a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000)},fn=ext=>(C.name.replace(/\W+/g,'_')||'case')+ext;
+function csvParse(t){const rows=[];let r=[],f='',q=false;for(let i=0;i<t.length;i++){const c=t[i];if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}else if(c==='"')q=true;else if(c===','){r.push(f);f=''}else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);rows.push(r);r=[];f=''}else f+=c}if(f||r.length){r.push(f);rows.push(r)}return rows}
+function importText(name,t){snap();try{if(/\.json$/i.test(name)){const o=JSON.parse(t);if(!o.nodes)throw 0;const c=norm(o);DB.cases[c.id]=c;use(c.id);toast('Imported '+c.nodes.length+' entities');return}
+const rows=csvParse(t),secs=[];let cur=[];rows.forEach(r=>{if(r.length===1&&!r[0].trim()){if(cur.length)secs.push(cur);cur=[]}else cur.push(r)});if(cur.length)secs.push(cur);let add=0;
+secs.forEach(s=>{const h=s[0].map(x=>x.trim().toLowerCase()),col=k=>h.indexOf(k);if(col('label')>-1){s.slice(1).forEach(r=>{const l=r[col('label')];if(!l)return;const ty=TY[r[col('type')]]?r[col('type')]:detect(l),n=addNode(ty,l,...center());if(col('id')>-1&&r[col('id')])n.id=r[col('id')];add++})}});
+idx();secs.forEach(s=>{const h=s[0].map(x=>x.trim().toLowerCase());if(h.includes('source')&&h.includes('target')){s.slice(1).forEach(r=>{const a=r[h.indexOf('source')],b=r[h.indexOf('target')];if(M.has(a)&&M.has(b))connect(a,b,r[h.indexOf('label')])})}});idx();save();toast('Imported '+add+' entities')}catch(e){toast('Import failed: unsupported file')}}
+$('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>importText(f.name,r.result);r.readAsText(f);e.target.value=''};
+$('#file').onchange=e=>{const v=e.target.value;e.target.value='';const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+if(v==='json')dl(fn('.json'),'application/json',JSON.stringify({...C,exportedAt:new Date().toISOString()},rep,2));
+else if(v==='csv')dl(fn('.csv'),'text/csv','id,type,label,risk,reliability,credibility,source,x,y,data\n'+C.nodes.map(n=>[n.id,n.type,n.label,n.data.risk,n.data.rel,n.data.cred,n.data.source,n.x.toFixed(1),n.y.toFixed(1),JSON.stringify(n.data)].map(q).join(',')).join('\n')+'\n\nid,source,target,label\n'+C.edges.map(e=>[e.id,e.source,e.target,e.label].map(q).join(',')).join('\n'));
+else if(v==='png'){draw();cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn('.png');a.click()})}
+else if(v==='report')report();else if(v==='import')$('#imp').click();
+else if(v==='sample'){const c=sample();DB.cases[c.id]=c;use(c.id)}
+else if(v==='delcase'){if(confirm(`Delete case "${C.name}"? This cannot be undone.`)){delete DB.cases[DB.cur];DB.cur=null;load();use(DB.cur)}}};
+function report(){const E=esc,deg=n=>adj.get(n.id).length,rows=[...C.nodes].sort((a,b)=>deg(b)-deg(a)).map(n=>`<tr><td>${n.type}</td><td>${E(n.label)}</td><td>${['Low','Medium','High','Critical'][[0,5,7,9].indexOf(+n.data.risk||0)]||'Low'}</td><td>${E((n.data.rel||'-')+(n.data.cred||''))}</td><td>${deg(n)}</td><td>${E(n.data.bio||'')}${n.notes?'<br><i>'+E(n.notes)+'</i>':''}</td></tr>`).join('');
+const html=`<!DOCTYPE html><meta charset=utf-8><title>${E(C.name)}</title><style>body{font:13px system-ui;max-width:900px;margin:30px auto;padding:0 16px;color:#111}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 7px;text-align:left;vertical-align:top}h2{margin-top:26px}pre{white-space:pre-wrap;font:inherit}@media print{button{display:none}}</style><button onclick=print()>Print / Save as PDF</button><h1>${E(C.name)}</h1><p><b>Target:</b> ${E(C.target)}<br><b>Objective:</b> ${E(C.objective)}<br><b>Tags:</b> ${E(C.tags)}<br><b>Generated:</b> ${new Date().toLocaleString()} · ${C.nodes.length} entities · ${C.edges.length} links</p><img src="${cv.toDataURL('image/png')}" style="max-width:100%;border:1px solid #ccc"><h2>Entities</h2><table><tr><th>Type</th><th>Label</th><th>Risk</th><th>Rating</th><th>Links</th><th>Notes</th></tr>${rows}</table><h2>Relationships</h2><table>${C.edges.map(e=>`<tr><td>${E(M.get(e.source).label)}</td><td>${E(e.label)}</td><td>${E(M.get(e.target).label)}</td></tr>`).join('')}</table><h2>Timeline</h2><table>${[...C.timeline].sort((a,b)=>new Date(a.time)-new Date(b.time)).map(t=>`<tr><td>${new Date(t.time).toLocaleString()}</td><td>${E(t.title)}</td><td>${E(t.desc)}</td></tr>`).join('')}</table><h2>Case notes</h2><pre>${E(C.caseNotes)}</pre>`;
+draw();const u=URL.createObjectURL(new Blob([html],{type:'text/html'})),w=open(u,'_blank');if(!w)dl(fn('_report.html'),'text/html',html)}
+/* ---------- boot ---------- */
+load();use(DB.cur);if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
